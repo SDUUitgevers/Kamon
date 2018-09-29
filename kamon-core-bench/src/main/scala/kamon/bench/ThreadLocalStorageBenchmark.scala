@@ -22,14 +22,23 @@ import kamon.context.Storage.Scope
 import kamon.context.{Context, Key, Storage}
 import org.openjdk.jmh.annotations._
 
-@State(Scope.Benchmark)
+@State(Scope.Thread)
 class ThreadLocalStorageBenchmark {
 
-  val TestKey: Key[Int] = Key.local("test-key", 0)
-  val ContextWithKey: Context = Context.create().withKey(TestKey, 43)
+  var TestKey: Key[Int] = _
+  var ContextWithKey: Context = _
 
-  val TLS: Storage =  new OldThreadLocal
-  val FTLS: Storage =  new Storage.ThreadLocal
+  var TLS: Storage =  _
+  var FTLS: Storage =  _
+
+  @Setup
+  def setup() = {
+    TestKey = Key.local("test-key", 0)
+    ContextWithKey = Context.create().withKey(TestKey, 43)
+
+    TLS =  new OldThreadLocal
+    FTLS =  Storage.ThreadLocal()
+  }
 
 
   @Benchmark
@@ -48,6 +57,17 @@ class ThreadLocalStorageBenchmark {
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   @Fork
   def fastThreadLocal: Context = {
+    val scope = FTLS.store(ContextWithKey)
+    FTLS.current()
+    scope.close()
+    FTLS.current()
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  @Fork(jvmArgsAppend = Array("-javaagent:library/kanela-agent-0.0.400.jar"))
+  def superFastThreadLocal: Context = {
     val scope = FTLS.store(ContextWithKey)
     FTLS.current()
     scope.close()

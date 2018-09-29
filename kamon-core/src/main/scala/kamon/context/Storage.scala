@@ -15,6 +15,10 @@
 
 package kamon.context
 
+import kanela.agent.bootstrap.context.ContextHolder
+
+//import kanela.agent.bootstrap.context.ContextHolder
+
 trait Storage {
   def current(): Context
   def store(context: Context): Storage.Scope
@@ -40,7 +44,15 @@ object Storage {
     * <p> One small change is that we don't use an kamon-defined holder object as that would prevent class unloading.
     *
     * */
-  class ThreadLocal extends Storage {
+
+  object ThreadLocal {
+    def apply(): Storage = {
+      if(classOf[ContextHolder].getClassLoader == null) SuperFastThreadLocal()
+      else FastThreadLocal()
+    }
+  }
+
+  final class FastThreadLocal extends Storage {
     private val tls = new java.lang.ThreadLocal[Array[AnyRef]]() {
       override def initialValue(): Array[AnyRef] =
         Array(Context.Empty)
@@ -61,7 +73,35 @@ object Storage {
     }
   }
 
-  object ThreadLocal {
-    def apply(): ThreadLocal = new ThreadLocal()
+  object FastThreadLocal {
+    def apply(): FastThreadLocal = new FastThreadLocal()
+  }
+
+
+  final class SuperFastThreadLocal extends Storage {
+    private val tls = new java.lang.ThreadLocal[ContextHolder]() {
+      override def initialValue(): ContextHolder = {
+        new ContextHolder(Context.Empty)
+      }
+    }
+
+    override def current(): Context =
+      tls.get().value.asInstanceOf[Context]
+
+    override def store(newContext: Context): Scope = {
+      val ref = tls.get()
+      val previousContext = ref.value
+      ref.value = newContext
+
+      new Scope {
+        override def context: Context = newContext
+        override def close(): Unit = ref.value = previousContext
+      }
+    }
+  }
+
+  object SuperFastThreadLocal {
+    def apply(): SuperFastThreadLocal = new SuperFastThreadLocal()
   }
 }
+

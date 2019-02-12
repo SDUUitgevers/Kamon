@@ -151,7 +151,6 @@ object Span {
 
         if(sampled) {
           spanTags = spanTags ++ Map(
-            "error" -> TagValue.True,
             "error.object" -> TagValue.String(error)
           )
         }
@@ -165,7 +164,6 @@ object Span {
 
         if(sampled) {
           spanTags = spanTags ++ Map(
-            "error" -> TagValue.True,
             "error.object" -> TagValue.String(throwable.getMessage())
           )
         }
